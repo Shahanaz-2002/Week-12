@@ -1,0 +1,34 @@
+[
+    {
+        "test": "Valid Case",
+        "status": "PASS"
+    },
+    {
+        "test": "Empty Symptoms",
+        "status": "PASS"
+    },
+    {
+        "test": "Invalid Age",
+        "status": "PASS"
+    },
+    {
+        "test": "Invalid Gender",
+        "status": "PASS"
+    },
+    {
+        "test": "Empty Symptom Values",
+        "status": "PASS"
+    },
+    {
+        "test": "Missing Symptoms Field",
+        "status": "PASS"
+    },
+    {
+        "test": "Long Doctor Notes",
+        "status": "PASS"
+    },
+    {
+        "test": "Single Symptom",
+        "status": "PASS"
+    }
+]

@@ -1,0 +1,30 @@
+clinical-insight-engine/        <-- ROOT FOLDER
+├── api/                        # API entry points
+│   ├── __init__.py
+│   └── main.py                 
+├── models/                     # Data schemas (Pydantic)
+│   ├── __init__.py
+│   └── models.py               
+├── services/                   # Logic & pipeline
+│   ├── __init__.py
+│   └── analyze_service.py      
+├── retrieval/                  # AI & Database logic
+│   ├── __init__.py
+│   ├── database.py             
+│   ├── embedding.py            
+│   ├── embedding_store.py      
+│   └── retrieval_engine.py     
+├── insight/                    # Decision & scoring components
+│   ├── __init__.py
+│   ├── confidence_engine.py    
+│   ├── explanation_generator.py 
+│   └── insight_aggregator.py   
+├── tests/                      # Testing & Demo scripts
+│   └── test_api_simulation.py  
+├── config.py                   # System-wide settings
+├── utils.py                    # Data migration tool
+├── requirements.txt            # Project dependencies
+├── Dockerfile                  # Container instructions
+├── .dockerignore               # Files to exclude from Docker
+├── .gitignore                  # Files to exclude from Git
+└── README.md                   # Setup and usage instructions
