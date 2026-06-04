@@ -32,11 +32,14 @@ import uvicorn
 
 from models.models import (
     ClinicalMatchRequest,
-    ClinicalMatchResponse
+    ClinicalMatchResponse,
+    SimilarCasesRequest,
+    SimilarCasesResponse
 )
 
 from services.analyze_service import (
-    clinical_match_pipeline
+    clinical_match_pipeline,
+    similar_cases_pipeline
 )
 
 # =========================================================
@@ -740,7 +743,67 @@ def clinical_match(
                 error=str(e)
             )
         )
+# =========================================================
+# SIMILAR CASES ENDPOINT
+# =========================================================
 
+@app.post(
+    "/similar-cases",
+    response_model=SimilarCasesResponse
+)
+def similar_cases(
+    request: SimilarCasesRequest
+):
+
+    request_id = generate_request_id()
+
+    log_event(
+        "similar_cases_request",
+        request_id,
+        "Similar cases request received"
+    )
+
+    try:
+
+        result = similar_cases_pipeline(
+            request
+        )
+
+        log_event(
+            "similar_cases_response",
+            request_id,
+            "Similar cases retrieved successfully",
+            {
+                "cases_found":
+                    len(
+                        result.get(
+                            "similar_cases",
+                            []
+                        )
+                    )
+            }
+        )
+
+        return SimilarCasesResponse(
+            **result
+        )
+
+    except Exception as e:
+
+        log_event(
+            "similar_cases_error",
+            request_id,
+            "Failed to retrieve similar cases",
+            {
+                "error":
+                    str(e)
+            }
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
 # =========================================================
 # SERVER START
 # =========================================================
