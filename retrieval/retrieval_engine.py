@@ -1,3 +1,5 @@
+# RETRIEVAL_ENGINE.PY
+
 # =========================================================
 # IMPORTS
 # =========================================================
@@ -614,89 +616,66 @@ def build_result_object(
 
     return {
 
-        "case_id":
-            safe_case_value(
-                case_data,
-                "case_id"
-            ),
+    "case_id":
+        safe_case_value(
+            case_data,
+            "case_id"
+        ),
 
-        "similarity":
-            round(
-                boosted_score,
-                4
-            ),
+    "similarity":
+        round(
+            boosted_score,
+            4
+        ),
 
-        "semantic_score":
-            round(
-                similarity_score,
-                4
-            ),
+    "semantic_score":
+        round(
+            similarity_score,
+            4
+        ),
 
-        "chief_complaint":
-            safe_case_value(
-                case_data,
-                "chief_complaint"
-            ),
+    "diagnosis":
+        safe_case_value(
+            case_data,
+            "diagnosis",
+            ""
+        ),
 
-        "affected_body_part":
-            safe_case_value(
-                case_data,
-                "affected_body_part"
-            ),
+    "symptoms":
+        safe_case_value(
+            case_data,
+            "symptoms",
+            ""
+        ),
 
-        "symptoms_duration":
-            safe_case_value(
-                case_data,
-                "symptoms_duration"
-            ),
+    "assessment_notes":
+        safe_case_value(
+            case_data,
+            "assessment_notes",
+            ""
+        ),
 
-        "doctor_notes":
-            safe_case_value(
-                case_data,
-                "doctor_notes",
-                "No notes available"
-            ),
+    "doctor_notes":
+        safe_case_value(
+            case_data,
+            "doctor_notes",
+            ""
+        ),
 
-        "clinical_history":
-            safe_case_value(
-                case_data,
-                "clinical_history",
-                ""
-            ),
+    "matched_keywords":
+        matched_keywords,
 
-        "objective_findings":
-            safe_case_value(
-                case_data,
-                "objective_findings",
-                ""
-            ),
+    "confidence_level":
+        get_confidence_level(
+            boosted_score
+        ),
 
-        "recommended_tests":
-            case_data.get(
-                "recommended_tests",
-                []
-            ),
+    "retrieval_source":
+        "BioBERT Semantic Retrieval",
 
-        "recommended_medicines":
-            case_data.get(
-                "recommended_medicines",
-                []
-            ),
-
-        "matched_keywords":
-            matched_keywords,
-
-        "confidence_level":
-            get_confidence_level(
-                boosted_score
-            ),
-
-        "retrieval_source":
-            "BioBERT Semantic Retrieval",
-
-        "searchable_text":
-            searchable_text
-    }
+    "searchable_text":
+        searchable_text
+}
 
 
 # =========================================================

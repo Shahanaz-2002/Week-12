@@ -330,37 +330,183 @@ def clinical_match_pipeline(
         logger.error(traceback.format_exc())
         raise HTTPException(500, {"message": str(e)})
 
+
+
 # =========================================================
-# FIXED: SIMILAR CASES PIPELINE (OUTSIDE EXCEPT BLOCK)
+# IMPROVED SIMILAR CASES PIPELINE
 # =========================================================
 
 def similar_cases_pipeline(request):
 
-    search_query = " | ".join(getattr(request, "symptoms", []))
+    try:
 
-    if getattr(request, "assessment_notes", None):
-        search_query += " | " + request.assessment_notes
+        # =====================================================
+        # BUILD SEARCH QUERY
+        # =====================================================
 
-    if getattr(request, "diagnosis", None):
-        search_query += " | " + request.diagnosis
+        query_parts = []
 
-    case_database = fetch_case_database()
+        symptoms = getattr(request, "symptoms", [])
 
-    retrieved_cases = retrieve_similar_cases(
-        query_text=search_query,
-        case_database=case_database,
-        top_k=MAX_MATCH_RESULTS
-    )
+        if symptoms:
+            query_parts.extend(
+                [normalize_text(str(symptom))
+                 for symptom in symptoms
+                 if safe_text(symptom)]
+            )
 
-    similar_cases = []
-    similarity_score = []
+        assessment_notes = safe_text(
+            getattr(request, "assessment_notes", "")
+        )
 
-    for case in retrieved_cases:
-        score = round(float(case.get("similarity", 0.0)), 4)
-        similar_cases.append(case)
-        similarity_score.append(score)
+        diagnosis = safe_text(
+            getattr(request, "diagnosis", "")
+        )
 
-    return {
-        "similar_cases": similar_cases,
-        "similarity_score": similarity_score
-    }
+        if assessment_notes:
+            query_parts.append(normalize_text(assessment_notes))
+
+        if diagnosis:
+            query_parts.append(normalize_text(diagnosis))
+
+        query_parts = remove_duplicates(query_parts)
+
+        search_query = " | ".join(query_parts).strip()
+
+        # =====================================================
+        # VALIDATE QUERY
+        # =====================================================
+
+        if not search_query:
+
+            raise HTTPException(
+                status_code=400,
+                detail="At least one symptom, assessment note, or diagnosis is required"
+            )
+
+        logger.info(
+            f"[SIMILAR_CASES] Search Query: {search_query}"
+        )
+
+        # =====================================================
+        # LOAD DATABASE
+        # =====================================================
+
+        case_database = fetch_case_database()
+
+        if not isinstance(case_database, list):
+
+            raise HTTPException(
+                status_code=500,
+                detail="Invalid clinical database format"
+            )
+
+        if len(case_database) == 0:
+
+            return {
+                "similar_cases": [],
+                "similarity_score": []
+            }
+
+        # =====================================================
+        # RETRIEVE MATCHES
+        # =====================================================
+
+        retrieved_cases = retrieve_similar_cases(
+            query_text=search_query,
+            case_database=case_database,
+            top_k=MAX_MATCH_RESULTS
+        )
+
+        if not retrieved_cases:
+
+            return {
+                "similar_cases": [],
+                "similarity_score": []
+            }
+
+        # =====================================================
+        # SORT BY SIMILARITY
+        # =====================================================
+
+        retrieved_cases = sorted(
+            retrieved_cases,
+            key=lambda x: float(x.get("similarity", 0.0)),
+            reverse=True
+        )
+
+        # =====================================================
+        # FORMAT RESPONSE
+        # =====================================================
+
+        similar_cases = []
+        similarity_score = []
+
+        for case in retrieved_cases[:MAX_MATCH_RESULTS]:
+
+            try:
+                score = round(
+                    max(
+                        0.0,
+                        min(
+                            1.0,
+                            float(case.get("similarity", 0.0))
+                        )
+                    ),
+                    4
+                )
+
+            except Exception:
+                score = 0.0
+
+            formatted_case = {
+                "case_id": str(
+                    case.get("case_id", "Unknown")
+                ),
+
+                "diagnosis": safe_text(
+                    case.get("diagnosis")
+                ),
+
+                "symptoms": safe_text(
+                    case.get("symptoms")
+                ),
+
+                "assessment_notes": safe_text(
+                    case.get("assessment_notes")
+                ),
+
+                "doctor_notes": safe_text(
+                    case.get("doctor_notes")
+                ),
+
+                "confidence_level": get_confidence_level(score)
+            }
+
+            similar_cases.append(formatted_case)
+            similarity_score.append(score)
+
+        logger.info(
+            f"[SIMILAR_CASES] Retrieved {len(similar_cases)} matches"
+        )
+
+        return {
+            "similar_cases": similar_cases,
+            "similarity_score": similarity_score
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+
+        logger.error(
+            f"Similar Cases Pipeline Error: {str(e)}"
+        )
+
+        logger.error(traceback.format_exc())
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve similar cases: {str(e)}"
+        )

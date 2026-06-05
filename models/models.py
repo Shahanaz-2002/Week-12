@@ -450,12 +450,231 @@ class ClinicalMatchResponse(BaseModel):
 # SIMILAR CASES MODELS
 # =========================================================
 
-class SimilarCasesRequest(BaseModel):
-    symptoms: List[str] = Field(default_factory=list)
-    assessment_notes: str = ""
+class SimilarCase(BaseModel):
+
+    case_id: str = "Unknown"
+
     diagnosis: str = ""
 
+    symptoms: str = ""
+
+    assessment_notes: str = ""
+
+    doctor_notes: str = ""
+
+    similarity_score: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0
+    )
+
+    confidence_level: str = "Moderate"
+
+    model_config = ConfigDict(
+        extra="ignore"
+    )
+
+    @field_validator(
+        "diagnosis",
+        "symptoms",
+        "assessment_notes",
+        "doctor_notes",
+        mode="before"
+    )
+    @classmethod
+    def clean_text_fields(cls, value):
+
+        return clean_text(value)
+
+    @field_validator("similarity_score")
+    @classmethod
+    def validate_similarity_score(cls, value):
+
+        return safe_float(value)
+
+    @field_validator("confidence_level")
+    @classmethod
+    def validate_confidence(cls, value):
+
+        allowed = [
+            "Very High",
+            "High",
+            "Moderate",
+            "Low"
+        ]
+
+        if value not in allowed:
+            return "Moderate"
+
+        return value
+
+
+# =========================================================
+# SIMILAR CASES REQUEST
+# =========================================================
+
+class SimilarCasesRequest(BaseModel):
+
+    symptoms: List[str] = Field(
+        default_factory=list,
+        description="Patient symptoms"
+    )
+
+    assessment_notes: str = Field(
+        default="",
+        description="Clinical assessment notes"
+    )
+
+    diagnosis: str = Field(
+        default="",
+        description="Diagnosis information"
+    )
+
+    model_config = ConfigDict(
+        extra="ignore",
+        str_strip_whitespace=True
+    )
+
+    @field_validator("symptoms", mode="before")
+    @classmethod
+    def clean_symptoms(cls, value):
+
+        if value is None:
+            return []
+
+        if not isinstance(value, list):
+            raise ValueError(
+                "symptoms must be a list"
+            )
+
+        cleaned = []
+
+        for symptom in value:
+
+            symptom = clean_text(symptom)
+
+            if symptom:
+                cleaned.append(symptom)
+
+        return cleaned
+
+    @field_validator(
+        "assessment_notes",
+        "diagnosis",
+        mode="before"
+    )
+    @classmethod
+    def clean_string_fields(cls, value):
+
+        return clean_text(value)
+
+    @model_validator(mode="after")
+    def validate_request(self):
+
+        if (
+            len(self.symptoms) == 0
+            and not self.assessment_notes
+            and not self.diagnosis
+        ):
+
+            raise ValueError(
+                "At least one symptom, assessment_notes, or diagnosis is required"
+            )
+
+        return self
+
+    def build_search_query(self):
+
+        query_parts = []
+
+        query_parts.extend(self.symptoms)
+
+        if self.assessment_notes:
+            query_parts.append(
+                self.assessment_notes
+            )
+
+        if self.diagnosis:
+            query_parts.append(
+                self.diagnosis
+            )
+
+        return " | ".join(query_parts).strip()
+
+
+# =========================================================
+# SIMILAR CASES RESPONSE
+# =========================================================
 
 class SimilarCasesResponse(BaseModel):
-    similar_cases: List[Dict[str, Any]] = Field(default_factory=list)
-    similarity_score: List[float] = Field(default_factory=list)
+
+    similar_cases: List[SimilarCase] = Field(
+        default_factory=list
+    )
+
+    similarity_score: List[float] = Field(
+        default_factory=list
+    )
+
+    total_matches_found: int = 0
+
+    average_similarity: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0
+    )
+
+    success: bool = True
+
+    model_config = ConfigDict(
+        extra="ignore"
+    )
+
+    @field_validator(
+        "similarity_score",
+        mode="before"
+    )
+    @classmethod
+    def validate_scores(cls, values):
+
+        if not values:
+            return []
+
+        return [
+            safe_float(v)
+            for v in values
+        ]
+
+    @field_validator(
+        "average_similarity"
+    )
+    @classmethod
+    def validate_average_similarity(
+        cls,
+        value
+    ):
+
+        return safe_float(value)
+
+    @field_validator(
+        "total_matches_found"
+    )
+    @classmethod
+    def validate_total_matches(
+        cls,
+        value
+    ):
+
+        try:
+            value = int(value)
+
+            if value < 0:
+                return 0
+
+            if value > MAX_MATCH_RESULTS:
+                return MAX_MATCH_RESULTS
+
+            return value
+
+        except Exception:
+            return 0
