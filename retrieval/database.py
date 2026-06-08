@@ -175,6 +175,11 @@ def clean_record(record: Dict[str, Any], index: int) -> Dict[str, Any]:
     record.setdefault("symptoms", "")
     record.setdefault("doctor_notes", "")
     record.setdefault("clinical_history", "")
+    record.setdefault("recommended_tests", [])
+    record.setdefault("recommended_medicines", [])
+    record.setdefault("home_plan", [])
+    record.setdefault("care_recommendations", [])
+    record.setdefault("follow_up_recommendations", [])
 
     text_fields = [
         "diagnosis",
@@ -186,7 +191,19 @@ def clean_record(record: Dict[str, Any], index: int) -> Dict[str, Any]:
         "affected_skin_area",
         "chief_complaint",
         "objective_findings",
-        "subjective_assessment"
+        "subjective_assessment",
+
+        # Phase 3
+        "possible_diagnosis",
+
+        # Phase 4
+        "recommended_tests",
+
+        # Phase 5
+        "recommended_medicines",
+        "home_plan",
+        "care_recommendations",
+        "follow_up_recommendations"
     ]
 
     for field in text_fields:
@@ -278,7 +295,27 @@ def fetch_case_database() -> List[Dict[str, Any]]:
             "Clinical cases loaded successfully",
             {"total_records": len(cleaned_records)}
         )
+        
+        list_fields = [
+            "recommended_tests",
+            "recommended_medicines",
+            "home_plan",
+            "care_recommendations",
+            "follow_up_recommendations"
+        ]
 
+        for field in list_fields:
+            value = record.get(field)
+
+        if value is None:
+            record[field] = []
+        elif isinstance(value, str):
+            record[field] = [x.strip() for x in value.split(",") if x.strip()]
+        elif isinstance(value, list):
+            record[field] = value
+        else:
+            record[field] = []
+        
         return cleaned_records
 
     except PyMongoError as mongo_error:
@@ -428,4 +465,4 @@ def close_database_connection():
             "database_close_error",
             "Failed to close MongoDB connection",
             {"error": str(e)}
-        )        
+        )

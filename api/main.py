@@ -25,15 +25,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 import uvicorn
 
+# Ensure these new models are defined in your models.py!
 from models.models import (
     ClinicalMatchRequest,
     ClinicalMatchResponse,
     SimilarCasesRequest,
-    SimilarCasesResponse
+    SimilarCasesResponse,
+    DiagnosisRequest,
+    TestRequest,
+    CareRequest
 )
+
+# Ensure these new pipeline functions are defined in your analyze_service.py!
 from services.analyze_service import (
     clinical_match_pipeline,
-    similar_cases_pipeline
+    similar_cases_pipeline,
+    diagnosis_suggestions_pipeline,
+    recommended_tests_pipeline,
+    care_recommendations_pipeline
 )
 
 # =========================================================
@@ -266,7 +275,7 @@ def debug_sample():
     }
 
 # =========================================================
-# MAIN CLINICAL MATCH ENDPOINT
+# PHASE 1 & LEGACY: MAIN CLINICAL MATCH ENDPOINT
 # =========================================================
 
 @app.post("/clinical/match", response_model=ClinicalMatchResponse)
@@ -281,9 +290,6 @@ def clinical_match(request: ClinicalMatchRequest):
     )
 
     try:
-        # =================================================
-        # GENERATE DYNAMIC INPUTS
-        # =================================================
         processed_inputs = request.generate_dynamic_inputs()
         
         if not isinstance(processed_inputs, dict):
@@ -295,9 +301,6 @@ def clinical_match(request: ClinicalMatchRequest):
         patient_metadata = processed_inputs.get("patient_metadata", {})
         available_fields = processed_inputs.get("available_fields", [])
 
-        # =================================================
-        # VALIDATE SEARCH QUERY
-        # =================================================
         if not str(search_query).strip():
             raise HTTPException(
                 status_code=400,
@@ -307,9 +310,6 @@ def clinical_match(request: ClinicalMatchRequest):
                 }
             )
 
-        # =================================================
-        # EXECUTE PIPELINE
-        # =================================================
         result = clinical_match_pipeline(
             request=request,
             request_id=request_id,
@@ -323,9 +323,6 @@ def clinical_match(request: ClinicalMatchRequest):
         if not isinstance(result, dict):
             result = {}
 
-        # =================================================
-        # SAFE EXTRACTION
-        # =================================================
         matches = result.get("matches", [])
         if not isinstance(matches, list):
             matches = []
@@ -340,9 +337,6 @@ def clinical_match(request: ClinicalMatchRequest):
         confidence_score = round(max(0.0, min(1.0, confidence_score)), 4)
         processing_time = round((time.time() - start_time) * 1000, 2)
 
-        # =================================================
-        # FINAL RESPONSE
-        # =================================================
         final_response = {
             "status": result.get("status", "Success"),
             "message": result.get("message", "Clinical matching completed successfully"),
@@ -376,9 +370,6 @@ def clinical_match(request: ClinicalMatchRequest):
 
         return ClinicalMatchResponse(**final_response)
 
-    # =====================================================
-    # HTTP EXCEPTIONS
-    # =====================================================
     except HTTPException as http_error:
         log_event(
             "http_error",
@@ -391,9 +382,6 @@ def clinical_match(request: ClinicalMatchRequest):
         )
         raise http_error
 
-    # =====================================================
-    # UNEXPECTED ERRORS
-    # =====================================================
     except Exception as e:
         log_event(
             "clinical_match_error",
@@ -415,35 +403,26 @@ def clinical_match(request: ClinicalMatchRequest):
         )
 
 # =========================================================
-# SIMILAR CASES ENDPOINT
+# PHASE 2: SIMILAR CASES ENDPOINT
 # =========================================================
 
 @app.post("/similar-cases", response_model=SimilarCasesResponse)
 def similar_cases(request: SimilarCasesRequest):
     request_id = generate_request_id()
     
-    log_event(
-        "similar_cases_request",
-        request_id,
-        "Similar cases request received"
-    )
+    log_event("similar_cases_request", request_id, "Similar cases request received")
 
     try:
         result = similar_cases_pipeline(request)
 
         if not isinstance(result, dict):
-            result = {
-                "similar_cases": [],
-                "similarity_score": []
-            }
+            result = {"similar_cases": [], "similarity_score": []}
 
         log_event(
             "similar_cases_response",
             request_id,
             "Similar cases retrieved successfully",
-            {
-                "cases_found": len(result.get("similar_cases", []))
-            }
+            {"cases_found": len(result.get("similar_cases", []))}
         )
 
         return SimilarCasesResponse(**result)
@@ -453,16 +432,140 @@ def similar_cases(request: SimilarCasesRequest):
             "similar_cases_error",
             request_id,
             "Failed to retrieve similar cases",
-            {
-                "error": str(e),
-                "traceback": traceback.format_exc()
-            }
+            {"error": str(e), "traceback": traceback.format_exc()}
         )
         raise HTTPException(
             status_code=500,
             detail=standard_error_response(
                 status_text="Failed",
                 message="Similar case retrieval failed",
+                request_id=request_id,
+                error=str(e)
+            )
+        )
+
+# =========================================================
+# PHASE 3: DIAGNOSIS SUGGESTIONS ENDPOINT
+# =========================================================
+
+@app.post("/diagnosis-suggestions")
+def diagnosis_suggestions(request: DiagnosisRequest):
+    request_id = generate_request_id()
+    
+    log_event("diagnosis_suggestions_request", request_id, "Diagnosis suggestions request received")
+
+    try:
+        result = diagnosis_suggestions_pipeline(request)
+
+        if not isinstance(result, dict):
+            result = {"possible_diagnoses": []}
+
+        log_event(
+            "diagnosis_suggestions_response",
+            request_id,
+            "Diagnosis suggestions generated successfully",
+            {"diagnoses_count": len(result.get("possible_diagnoses", []))}
+        )
+
+        # Returning standard dict since response model wasn't explicitly provided, 
+        # but you can add response_model=DiagnosisResponse to the decorator if created!
+        return result
+
+    except Exception as e:
+        log_event(
+            "diagnosis_suggestions_error",
+            request_id,
+            "Failed to generate diagnosis suggestions",
+            {"error": str(e), "traceback": traceback.format_exc()}
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=standard_error_response(
+                status_text="Failed",
+                message="Diagnosis suggestions failed",
+                request_id=request_id,
+                error=str(e)
+            )
+        )
+
+# =========================================================
+# PHASE 4: RECOMMENDED TESTS ENDPOINT
+# =========================================================
+
+@app.post("/recommended-tests")
+def recommended_tests(request: TestRequest):
+    request_id = generate_request_id()
+    
+    log_event("recommended_tests_request", request_id, "Recommended tests request received")
+
+    try:
+        result = recommended_tests_pipeline(request)
+
+        if not isinstance(result, dict):
+            result = {"recommended_tests": []}
+
+        log_event(
+            "recommended_tests_response",
+            request_id,
+            "Recommended tests generated successfully",
+            {"tests_count": len(result.get("recommended_tests", []))}
+        )
+
+        return result
+
+    except Exception as e:
+        log_event(
+            "recommended_tests_error",
+            request_id,
+            "Failed to generate recommended tests",
+            {"error": str(e), "traceback": traceback.format_exc()}
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=standard_error_response(
+                status_text="Failed",
+                message="Recommended tests failed",
+                request_id=request_id,
+                error=str(e)
+            )
+        )
+
+# =========================================================
+# PHASE 5: CARE RECOMMENDATIONS ENDPOINT
+# =========================================================
+
+@app.post("/care-recommendations")
+def care_recommendations(request: CareRequest):
+    request_id = generate_request_id()
+    
+    log_event("care_recommendations_request", request_id, "Care recommendations request received")
+
+    try:
+        result = care_recommendations_pipeline(request)
+
+        if not isinstance(result, dict):
+            result = {"home_plan": [], "care_recommendations": [], "follow_up_recommendations": []}
+
+        log_event(
+            "care_recommendations_response",
+            request_id,
+            "Care recommendations generated successfully"
+        )
+
+        return result
+
+    except Exception as e:
+        log_event(
+            "care_recommendations_error",
+            request_id,
+            "Failed to generate care recommendations",
+            {"error": str(e), "traceback": traceback.format_exc()}
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=standard_error_response(
+                status_text="Failed",
+                message="Care recommendations failed",
                 request_id=request_id,
                 error=str(e)
             )

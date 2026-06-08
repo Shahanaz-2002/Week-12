@@ -36,7 +36,6 @@ def clean_text(value):
         return ""
 
     value = str(value).strip()
-
     value = re.sub(r"\s+", " ", value)
 
     # improved regex (keeps medical-relevant symbols)
@@ -678,3 +677,86 @@ class SimilarCasesResponse(BaseModel):
 
         except Exception:
             return 0
+
+
+# =========================================================
+# NEW: PHASE 3 - DIAGNOSIS SUGGESTIONS MODEL
+# =========================================================
+
+class DiagnosisRequest(BaseModel):
+    symptoms: List[str] = Field(default_factory=list)
+    assessment_notes: Optional[str] = ""
+
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
+
+    @field_validator("symptoms", mode="before")
+    @classmethod
+    def clean_symptoms(cls, value):
+        if not isinstance(value, list):
+            return []
+        return [clean_text(v) for v in value if clean_text(v)]
+
+    @field_validator("assessment_notes", mode="before")
+    @classmethod
+    def clean_notes(cls, value):
+        return clean_text(value)
+
+
+# =========================================================
+# NEW: PHASE 4 - RECOMMENDED TESTS MODEL
+# =========================================================
+
+class TestRequest(BaseModel):
+    symptoms: List[str] = Field(default_factory=list)
+    possible_diagnosis: str = ""
+
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
+
+    @field_validator("symptoms", mode="before")
+    @classmethod
+    def clean_symptoms(cls, value):
+        if not isinstance(value, list):
+            return []
+        return [clean_text(v) for v in value if clean_text(v)]
+
+    @field_validator("possible_diagnosis", mode="before")
+    @classmethod
+    def clean_diagnosis(cls, value):
+        return clean_text(value)
+
+
+# =========================================================
+# NEW: PHASE 5 - CARE RECOMMENDATIONS MODEL
+# =========================================================
+
+class CareRequest(BaseModel):
+    diagnosis: str = ""
+    symptoms: List[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
+
+    @field_validator("symptoms", mode="before")
+    @classmethod
+    def clean_symptoms(cls, value):
+        if not isinstance(value, list):
+            return []
+        return [clean_text(v) for v in value if clean_text(v)]
+
+    @field_validator("diagnosis", mode="before")
+    @classmethod
+    def clean_diagnosis(cls, value):
+        return clean_text(value)
+
+
+# =========================================================
+# NEW: PHASE 6 - UNIFIED OUTPUT FRAMEWORK MODEL
+# =========================================================
+
+class ClinicalIntelligenceResponse(BaseModel):
+    similar_cases: List[dict] = Field(default_factory=list)
+    possible_diagnoses: List[dict] = Field(default_factory=list)
+    recommended_tests: List[str] = Field(default_factory=list)
+    home_plan: List[str] = Field(default_factory=list)
+    care_recommendations: List[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="ignore")

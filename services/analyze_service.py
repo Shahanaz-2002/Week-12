@@ -11,6 +11,7 @@ from typing import Dict, List, Any
 
 from fastapi import HTTPException
 
+# Ensure these match your actual imports!
 from retrieval.retrieval_engine import retrieve_similar_cases
 from retrieval.database import fetch_case_database
 
@@ -248,7 +249,7 @@ def generate_similarity_reason(case):
     return "Matched based on: " + ", ".join(keywords[:3])
 
 # =========================================================
-# MAIN PIPELINE
+# PHASE 1: MAIN PIPELINE
 # =========================================================
 
 def clinical_match_pipeline(
@@ -260,7 +261,6 @@ def clinical_match_pipeline(
     patient_metadata=None,
     log_event=None
 ):
-
     start_time = time.time()
 
     try:
@@ -325,92 +325,49 @@ def clinical_match_pipeline(
 
     except HTTPException:
         raise
-
     except Exception as e:
         logger.error(traceback.format_exc())
         raise HTTPException(500, {"message": str(e)})
 
-
-
 # =========================================================
-# IMPROVED SIMILAR CASES PIPELINE
+# PHASE 2: SIMILAR CASES PIPELINE
 # =========================================================
 
 def similar_cases_pipeline(request):
-
     try:
-
-        # =====================================================
-        # BUILD SEARCH QUERY
-        # =====================================================
-
         query_parts = []
-
         symptoms = getattr(request, "symptoms", [])
 
         if symptoms:
             query_parts.extend(
-                [normalize_text(str(symptom))
-                 for symptom in symptoms
-                 if safe_text(symptom)]
+                [normalize_text(str(symptom)) for symptom in symptoms if safe_text(symptom)]
             )
 
-        assessment_notes = safe_text(
-            getattr(request, "assessment_notes", "")
-        )
-
-        diagnosis = safe_text(
-            getattr(request, "diagnosis", "")
-        )
+        assessment_notes = safe_text(getattr(request, "assessment_notes", ""))
+        diagnosis = safe_text(getattr(request, "diagnosis", ""))
 
         if assessment_notes:
             query_parts.append(normalize_text(assessment_notes))
-
         if diagnosis:
             query_parts.append(normalize_text(diagnosis))
 
         query_parts = remove_duplicates(query_parts)
-
         search_query = " | ".join(query_parts).strip()
 
-        # =====================================================
-        # VALIDATE QUERY
-        # =====================================================
-
         if not search_query:
-
             raise HTTPException(
                 status_code=400,
                 detail="At least one symptom, assessment note, or diagnosis is required"
             )
 
-        logger.info(
-            f"[SIMILAR_CASES] Search Query: {search_query}"
-        )
-
-        # =====================================================
-        # LOAD DATABASE
-        # =====================================================
-
+        logger.info(f"[SIMILAR_CASES] Search Query: {search_query}")
         case_database = fetch_case_database()
 
         if not isinstance(case_database, list):
-
-            raise HTTPException(
-                status_code=500,
-                detail="Invalid clinical database format"
-            )
+            raise HTTPException(status_code=500, detail="Invalid clinical database format")
 
         if len(case_database) == 0:
-
-            return {
-                "similar_cases": [],
-                "similarity_score": []
-            }
-
-        # =====================================================
-        # RETRIEVE MATCHES
-        # =====================================================
+            return {"similar_cases": [], "similarity_score": []}
 
         retrieved_cases = retrieve_similar_cases(
             query_text=search_query,
@@ -419,15 +376,7 @@ def similar_cases_pipeline(request):
         )
 
         if not retrieved_cases:
-
-            return {
-                "similar_cases": [],
-                "similarity_score": []
-            }
-
-        # =====================================================
-        # SORT BY SIMILARITY
-        # =====================================================
+            return {"similar_cases": [], "similarity_score": []}
 
         retrieved_cases = sorted(
             retrieved_cases,
@@ -435,60 +384,28 @@ def similar_cases_pipeline(request):
             reverse=True
         )
 
-        # =====================================================
-        # FORMAT RESPONSE
-        # =====================================================
-
         similar_cases = []
         similarity_score = []
 
         for case in retrieved_cases[:MAX_MATCH_RESULTS]:
-
             try:
-                score = round(
-                    max(
-                        0.0,
-                        min(
-                            1.0,
-                            float(case.get("similarity", 0.0))
-                        )
-                    ),
-                    4
-                )
-
+                score = round(max(0.0, min(1.0, float(case.get("similarity", 0.0)))), 4)
             except Exception:
                 score = 0.0
 
             formatted_case = {
-                "case_id": str(
-                    case.get("case_id", "Unknown")
-                ),
-
-                "diagnosis": safe_text(
-                    case.get("diagnosis")
-                ),
-
-                "symptoms": safe_text(
-                    case.get("symptoms")
-                ),
-
-                "assessment_notes": safe_text(
-                    case.get("assessment_notes")
-                ),
-
-                "doctor_notes": safe_text(
-                    case.get("doctor_notes")
-                ),
-
+                "case_id": str(case.get("case_id", "Unknown")),
+                "diagnosis": safe_text(case.get("diagnosis")),
+                "symptoms": safe_text(case.get("symptoms")),
+                "assessment_notes": safe_text(case.get("assessment_notes")),
+                "doctor_notes": safe_text(case.get("doctor_notes")),
                 "confidence_level": get_confidence_level(score)
             }
 
             similar_cases.append(formatted_case)
             similarity_score.append(score)
 
-        logger.info(
-            f"[SIMILAR_CASES] Retrieved {len(similar_cases)} matches"
-        )
+        logger.info(f"[SIMILAR_CASES] Retrieved {len(similar_cases)} matches")
 
         return {
             "similar_cases": similar_cases,
@@ -497,16 +414,229 @@ def similar_cases_pipeline(request):
 
     except HTTPException:
         raise
+    except Exception as e:
+        logger.error(f"Similar Cases Pipeline Error: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve similar cases: {str(e)}")
+
+# =========================================================
+# NEW: PHASE 3 - DIAGNOSIS SUGGESTIONS PIPELINE
+# =========================================================
+
+def diagnosis_suggestions_pipeline(request) -> dict:
+    try:
+        symptoms_str = " ".join(getattr(request, "symptoms", [])).lower()
+        notes_str = safe_text(getattr(request, "assessment_notes", "")).lower()
+        combined_text = f"{symptoms_str} {notes_str}"
+
+        diagnoses = []
+        
+        # Simple rule-based engine for assignment purposes
+        if "fever" in combined_text or "chills" in combined_text:
+            diagnoses.append({"diagnosis": "Viral Infection", "confidence": "High"})
+        elif "pain" in combined_text or "injury" in combined_text:
+            diagnoses.append({"diagnosis": "Musculoskeletal Strain", "confidence": "Moderate"})
+        elif "acne" in combined_text or "rash" in combined_text or "itch" in combined_text:
+            diagnoses.append({"diagnosis": "Dermatitis / Skin Condition", "confidence": "High"})
+        else:
+            diagnoses.append({"diagnosis": "General Evaluation Needed", "confidence": "Low"})
+
+        return {"possible_diagnoses": diagnoses}
+
+    except Exception as e:
+        logger.error(f"Diagnosis Pipeline Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate diagnoses: {str(e)}")
+
+# =========================================================
+# PHASE 4 - RECOMMENDED TESTS PIPELINE
+# =========================================================
+
+def recommended_tests_pipeline(request) -> dict:
+    try:
+
+        symptoms = getattr(request, "symptoms", [])
+        diagnosis = safe_text(
+            getattr(request, "possible_diagnosis", "")
+        )
+
+        query_parts = []
+
+        if symptoms:
+            query_parts.extend([
+                normalize_text(str(symptom))
+                for symptom in symptoms
+                if safe_text(symptom)
+            ])
+
+        if diagnosis:
+            query_parts.append(
+                normalize_text(diagnosis)
+            )
+
+        query_parts = remove_duplicates(query_parts)
+
+        search_query = " | ".join(query_parts).strip()
+
+        if not search_query:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "At least one symptom or "
+                    "possible diagnosis is required"
+                )
+            )
+
+        logger.info(
+            f"[RECOMMENDED_TESTS] "
+            f"Search Query: {search_query}"
+        )
+
+        case_database = fetch_case_database()
+
+        if not isinstance(case_database, list):
+            raise HTTPException(
+                status_code=500,
+                detail="Invalid clinical database format"
+            )
+
+        if len(case_database) == 0:
+            return {
+                "recommended_tests":
+                DEFAULT_RECOMMENDED_TESTS
+            }
+
+        retrieved_cases = retrieve_similar_cases(
+            query_text=search_query,
+            case_database=case_database,
+            top_k=MAX_MATCH_RESULTS
+        )
+
+        if not retrieved_cases:
+            return {
+                "recommended_tests":
+                DEFAULT_RECOMMENDED_TESTS
+            }
+
+        test_frequency = {}
+
+        for case in retrieved_cases:
+
+            tests = case.get(
+                "recommended_tests",
+                []
+            )
+
+            if isinstance(tests, str):
+                tests = [tests]
+
+            if not isinstance(tests, list):
+                continue
+
+            for test in tests:
+
+                test_name = safe_text(test)
+
+                if not test_name:
+                    continue
+
+                test_frequency[test_name] = (
+                    test_frequency.get(
+                        test_name,
+                        0
+                    ) + 1
+                )
+
+        if not test_frequency:
+
+            return {
+                "recommended_tests":
+                DEFAULT_RECOMMENDED_TESTS
+            }
+
+        ranked_tests = sorted(
+            test_frequency.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+
+        recommended_tests = [
+            test
+            for test, _
+            in ranked_tests[:10]
+        ]
+
+        logger.info(
+            f"[RECOMMENDED_TESTS] "
+            f"Generated "
+            f"{len(recommended_tests)} "
+            f"test recommendations"
+        )
+
+        return {
+            "recommended_tests":
+            remove_duplicates(
+                recommended_tests
+            )
+        }
+
+    except HTTPException:
+        raise
 
     except Exception as e:
 
         logger.error(
-            f"Similar Cases Pipeline Error: {str(e)}"
+            f"Tests Pipeline Error: {str(e)}"
         )
 
-        logger.error(traceback.format_exc())
+        logger.error(
+            traceback.format_exc()
+        )
 
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to retrieve similar cases: {str(e)}"
+            detail=(
+                "Failed to recommend tests: "
+                f"{str(e)}"
+            )
         )
+
+# =========================================================
+# NEW: PHASE 5 - CARE RECOMMENDATIONS PIPELINE
+# =========================================================
+
+def care_recommendations_pipeline(request) -> dict:
+    try:
+        diagnosis_str = safe_text(getattr(request, "diagnosis", "")).lower()
+        symptoms_str = " ".join(getattr(request, "symptoms", [])).lower()
+        combined_text = f"{diagnosis_str} {symptoms_str}"
+
+        home_plan = ["Maintain adequate hydration (2-3 liters/day)", "Ensure 7-8 hours of sleep"]
+        care_recommendations = []
+        follow_up = ["Follow up after one week"]
+
+        if "pain" in combined_text or "strain" in combined_text:
+            home_plan.append("Posture correction exercises")
+            care_recommendations.append("Ice/Heat therapy 15 mins twice a day")
+            care_recommendations.append("Avoid heavy lifting")
+            
+        elif "infection" in combined_text or "fever" in combined_text:
+            care_recommendations.append("Take antipyretics if temperature exceeds 100.4F")
+            care_recommendations.append("Rest completely for 48 hours")
+            follow_up = ["Follow up in 3 days if symptoms do not improve"]
+
+        elif "skin" in combined_text or "rash" in combined_text:
+            home_plan.append("Use mild, fragrance-free moisturizers")
+            care_recommendations.append("Avoid direct sun exposure during peak hours")
+
+        if not care_recommendations:
+            care_recommendations = ["Follow medication regimen strictly as prescribed"]
+
+        return {
+            "home_plan": home_plan,
+            "care_recommendations": care_recommendations,
+            "follow_up_recommendations": follow_up
+        }
+
+    except Exception as e:
+        logger.error(f"Care Recommendations Pipeline Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate care plan: {str(e)}")
