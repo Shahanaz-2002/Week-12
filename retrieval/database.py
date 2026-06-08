@@ -304,17 +304,19 @@ def fetch_case_database() -> List[Dict[str, Any]]:
             "follow_up_recommendations"
         ]
 
-        for field in list_fields:
-            value = record.get(field)
+        # LOOP ADDED HERE TO FIX THE NAMERROR
+        for record in cleaned_records:
+            for field in list_fields:
+                value = record.get(field)
 
-        if value is None:
-            record[field] = []
-        elif isinstance(value, str):
-            record[field] = [x.strip() for x in value.split(",") if x.strip()]
-        elif isinstance(value, list):
-            record[field] = value
-        else:
-            record[field] = []
+                if value is None:
+                    record[field] = []
+                elif isinstance(value, str):
+                    record[field] = [x.strip() for x in value.split(",") if x.strip()]
+                elif isinstance(value, list):
+                    record[field] = value
+                else:
+                    record[field] = []
         
         return cleaned_records
 
