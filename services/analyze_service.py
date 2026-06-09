@@ -606,37 +606,235 @@ def recommended_tests_pipeline(request) -> dict:
 
 def care_recommendations_pipeline(request) -> dict:
     try:
-        diagnosis_str = safe_text(getattr(request, "diagnosis", "")).lower()
-        symptoms_str = " ".join(getattr(request, "symptoms", [])).lower()
-        combined_text = f"{diagnosis_str} {symptoms_str}"
 
-        home_plan = ["Maintain adequate hydration (2-3 liters/day)", "Ensure 7-8 hours of sleep"]
+        diagnosis = safe_text(
+            getattr(request, "diagnosis", "")
+        ).lower()
+
+        symptoms = [
+            safe_text(symptom).lower()
+            for symptom in getattr(request, "symptoms", [])
+        ]
+
+        combined_text = (
+            diagnosis +
+            " " +
+            " ".join(symptoms)
+        ).strip()
+
+        home_plan = []
         care_recommendations = []
-        follow_up = ["Follow up after one week"]
+        follow_up_recommendations = []
 
-        if "pain" in combined_text or "strain" in combined_text:
-            home_plan.append("Posture correction exercises")
-            care_recommendations.append("Ice/Heat therapy 15 mins twice a day")
-            care_recommendations.append("Avoid heavy lifting")
-            
-        elif "infection" in combined_text or "fever" in combined_text:
-            care_recommendations.append("Take antipyretics if temperature exceeds 100.4F")
-            care_recommendations.append("Rest completely for 48 hours")
-            follow_up = ["Follow up in 3 days if symptoms do not improve"]
+        # =====================================================
+        # UNIVERSAL RECOMMENDATIONS
+        # =====================================================
 
-        elif "skin" in combined_text or "rash" in combined_text:
-            home_plan.append("Use mild, fragrance-free moisturizers")
-            care_recommendations.append("Avoid direct sun exposure during peak hours")
+        home_plan.extend([
+            "Maintain adequate hydration (2-3 liters/day)",
+            "Ensure 7-8 hours of quality sleep",
+            "Follow a balanced nutritious diet"
+        ])
+
+        # =====================================================
+        # MUSCULOSKELETAL CONDITIONS
+        # =====================================================
+
+        if any(
+            keyword in combined_text
+            for keyword in [
+                "back pain",
+                "neck pain",
+                "joint pain",
+                "muscle pain",
+                "strain",
+                "sprain",
+                "injury"
+            ]
+        ):
+
+            home_plan.extend([
+                "Posture correction exercises",
+                "Gentle stretching exercises"
+            ])
+
+            care_recommendations.extend([
+                "Ice therapy for 15 minutes 3 times daily during first 48 hours",
+                "Heat therapy after acute pain reduces",
+                "Avoid heavy lifting",
+                "Maintain ergonomic posture"
+            ])
+
+            follow_up_recommendations.append(
+                "Follow-up after one week"
+            )
+
+        # =====================================================
+        # FEVER / INFECTION
+        # =====================================================
+
+        elif any(
+            keyword in combined_text
+            for keyword in [
+                "fever",
+                "infection",
+                "viral",
+                "flu",
+                "chills"
+            ]
+        ):
+
+            home_plan.extend([
+                "Increase oral fluid intake",
+                "Take adequate rest"
+            ])
+
+            care_recommendations.extend([
+                "Monitor body temperature regularly",
+                "Take prescribed medications as directed",
+                "Seek medical review if symptoms worsen"
+            ])
+
+            follow_up_recommendations.append(
+                "Follow-up in 3 days if symptoms persist"
+            )
+
+        # =====================================================
+        # DERMATOLOGY
+        # =====================================================
+
+        elif any(
+            keyword in combined_text
+            for keyword in [
+                "rash",
+                "eczema",
+                "acne",
+                "psoriasis",
+                "dermatitis",
+                "skin"
+            ]
+        ):
+
+            home_plan.extend([
+                "Use mild fragrance-free moisturizers",
+                "Keep skin hydrated"
+            ])
+
+            care_recommendations.extend([
+                "Avoid excessive sun exposure",
+                "Avoid harsh cosmetic products",
+                "Maintain skin hygiene"
+            ])
+
+            follow_up_recommendations.append(
+                "Follow-up after one week"
+            )
+
+        # =====================================================
+        # RESPIRATORY CONDITIONS
+        # =====================================================
+
+        elif any(
+            keyword in combined_text
+            for keyword in [
+                "cough",
+                "cold",
+                "respiratory",
+                "asthma"
+            ]
+        ):
+
+            home_plan.extend([
+                "Adequate hydration",
+                "Steam inhalation if appropriate"
+            ])
+
+            care_recommendations.extend([
+                "Avoid smoke exposure",
+                "Monitor breathing difficulty"
+            ])
+
+            follow_up_recommendations.append(
+                "Follow-up in 5-7 days"
+            )
+
+        # =====================================================
+        # DEHYDRATION
+        # =====================================================
+
+        elif "dehydration" in combined_text:
+
+            home_plan.extend([
+                "Oral rehydration therapy",
+                "Increase water intake"
+            ])
+
+            care_recommendations.extend([
+                "Monitor urine output",
+                "Avoid excessive heat exposure"
+            ])
+
+            follow_up_recommendations.append(
+                "Follow-up within 48 hours"
+            )
+
+        # =====================================================
+        # FALLBACK
+        # =====================================================
 
         if not care_recommendations:
-            care_recommendations = ["Follow medication regimen strictly as prescribed"]
+
+            care_recommendations.append(
+                "Follow prescribed treatment plan"
+            )
+
+            follow_up_recommendations.append(
+                "Follow-up after one week"
+            )
+
+        # =====================================================
+        # SPECIALIST REFERRAL RULES
+        # =====================================================
+
+        if any(
+            keyword in combined_text
+            for keyword in [
+                "chest pain",
+                "stroke",
+                "neurological",
+                "shortness of breath",
+                "severe trauma"
+            ]
+        ):
+
+            follow_up_recommendations.append(
+                "Specialist referral recommended"
+            )
 
         return {
-            "home_plan": home_plan,
-            "care_recommendations": care_recommendations,
-            "follow_up_recommendations": follow_up
+            "home_plan": remove_duplicates(home_plan),
+            "care_recommendations": remove_duplicates(
+                care_recommendations
+            ),
+            "follow_up_recommendations": remove_duplicates(
+                follow_up_recommendations
+            )
         }
 
     except Exception as e:
-        logger.error(f"Care Recommendations Pipeline Error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate care plan: {str(e)}")
+
+        logger.error(
+            f"Care Recommendations Pipeline Error: {str(e)}"
+        )
+
+        logger.error(
+            traceback.format_exc()
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Failed to generate care plan: "
+                f"{str(e)}"
+            )
+        )

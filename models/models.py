@@ -729,7 +729,13 @@ class TestRequest(BaseModel):
 # NEW: PHASE 5 - CARE RECOMMENDATIONS MODEL
 # =========================================================
 
-class CareRequest(BaseModel):
+class CareRecommendationResponse(BaseModel):
+    home_plan: List[str] = Field(default_factory=list)
+    care_recommendations: List[str] = Field(default_factory=list)
+    follow_up_recommendations: List[str] = Field(default_factory=list)
+    success: bool = True
+
+    model_config = ConfigDict(extra="ignore")
     diagnosis: str = ""
     symptoms: List[str] = Field(default_factory=list)
 
@@ -747,16 +753,54 @@ class CareRequest(BaseModel):
     def clean_diagnosis(cls, value):
         return clean_text(value)
 
+# =========================================================
+# NEW: PHASE 5 - CARE RECOMMENDATIONS RESPONSE MODEL
+# =========================================================
 
+class CareRecommendationResponse(BaseModel):
+
+    home_plan: List[str] = Field(
+        default_factory=list,
+        description="Home care plan suggestions"
+    )
+
+    care_recommendations: List[str] = Field(
+        default_factory=list,
+        description="Clinical self-care recommendations"
+    )
+
+    follow_up_recommendations: List[str] = Field(
+        default_factory=list,
+        description="Follow-up and referral recommendations"
+    )
+
+    success: bool = True
+
+    model_config = ConfigDict(
+        extra="ignore"
+    )
 # =========================================================
 # NEW: PHASE 6 - UNIFIED OUTPUT FRAMEWORK MODEL
 # =========================================================
 
 class ClinicalIntelligenceResponse(BaseModel):
+
     similar_cases: List[dict] = Field(default_factory=list)
+
     possible_diagnoses: List[dict] = Field(default_factory=list)
+
     recommended_tests: List[str] = Field(default_factory=list)
+
     home_plan: List[str] = Field(default_factory=list)
+
     care_recommendations: List[str] = Field(default_factory=list)
 
-    model_config = ConfigDict(extra="ignore")
+    follow_up_recommendations: List[str] = Field(
+        default_factory=list
+    )
+
+    success: bool = True
+
+    model_config = ConfigDict(
+        extra="ignore"
+    )
