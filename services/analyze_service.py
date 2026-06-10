@@ -838,3 +838,207 @@ def care_recommendations_pipeline(request) -> dict:
                 f"{str(e)}"
             )
         )
+# =========================================================
+# PHASE 6 - UNIFIED CLINICAL INTELLIGENCE PIPELINE
+# =========================================================
+
+def clinical_intelligence_pipeline(request) -> dict:
+
+    start_time = time.time()
+
+    try:
+
+        # ==========================================
+        # SIMILAR CASES
+        # ==========================================
+
+        similar_case_result = (
+            similar_cases_pipeline(request)
+        )
+
+        # ==========================================
+        # DIAGNOSIS SUGGESTIONS
+        # ==========================================
+
+        diagnosis_result = (
+            diagnosis_suggestions_pipeline(request)
+        )
+
+        # ==========================================
+        # TEST RECOMMENDATIONS
+        # ==========================================
+
+        possible_diagnosis = ""
+
+        if diagnosis_result.get(
+            "possible_diagnoses"
+        ):
+
+            possible_diagnosis = (
+                diagnosis_result[
+                    "possible_diagnoses"
+                ][0].get(
+                    "diagnosis",
+                    ""
+                )
+            )
+
+        class TestRequestProxy:
+            pass
+
+        test_request = TestRequestProxy()
+
+        setattr(
+            test_request,
+            "symptoms",
+            getattr(
+                request,
+                "symptoms",
+                []
+            )
+        )
+
+        setattr(
+            test_request,
+            "possible_diagnosis",
+            possible_diagnosis
+        )
+
+        test_result = (
+            recommended_tests_pipeline(
+                test_request
+            )
+        )
+
+        # ==========================================
+        # CARE PLAN
+        # ==========================================
+
+        class CareRequestProxy:
+            pass
+
+        care_request = CareRequestProxy()
+
+        setattr(
+            care_request,
+            "diagnosis",
+            possible_diagnosis
+        )
+
+        setattr(
+            care_request,
+            "symptoms",
+            getattr(
+                request,
+                "symptoms",
+                []
+            )
+        )
+
+        care_result = (
+            care_recommendations_pipeline(
+                care_request
+            )
+        )
+
+        # ==========================================
+        # CONFIDENCE SCORE
+        # ==========================================
+
+        similarity_scores = (
+            similar_case_result.get(
+                "similarity_score",
+                []
+            )
+        )
+
+        confidence_score = 0.0
+
+        if similarity_scores:
+
+            confidence_score = round(
+                sum(similarity_scores)
+                / len(similarity_scores),
+                4
+            )
+
+        # ==========================================
+        # BUILD FINAL RESPONSE
+        # ==========================================
+
+        response = {
+
+            "similar_cases":
+            similar_case_result.get(
+                "similar_cases",
+                []
+            ),
+
+            "possible_diagnoses":
+            diagnosis_result.get(
+                "possible_diagnoses",
+                []
+            ),
+
+            "recommended_tests":
+            test_result.get(
+                "recommended_tests",
+                []
+            ),
+
+            "home_plan":
+            care_result.get(
+                "home_plan",
+                []
+            ),
+
+            "care_recommendations":
+            care_result.get(
+                "care_recommendations",
+                []
+            ),
+
+            "follow_up_recommendations":
+            care_result.get(
+                "follow_up_recommendations",
+                []
+            ),
+
+            "confidence_score":
+            confidence_score,
+
+            "processing_time_ms":
+            round(
+                (
+                    time.time()
+                    - start_time
+                ) * 1000,
+                2
+            ),
+
+            "success":
+            True
+        }
+
+        return response
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+
+        logger.error(
+            "Clinical Intelligence Pipeline Error"
+        )
+
+        logger.error(
+            traceback.format_exc()
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Failed to generate "
+                f"clinical intelligence: {str(e)}"
+            )
+        )

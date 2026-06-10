@@ -33,7 +33,9 @@ from models.models import (
     SimilarCasesResponse,
     DiagnosisRequest,
     TestRequest,
-    CareRequest
+    CareRecommendationRequest,
+    CareRecommendationResponse,
+    ClinicalIntelligenceResponse
 )
 
 # Ensure these new pipeline functions are defined in your analyze_service.py!
@@ -42,7 +44,8 @@ from services.analyze_service import (
     similar_cases_pipeline,
     diagnosis_suggestions_pipeline,
     recommended_tests_pipeline,
-    care_recommendations_pipeline
+    care_recommendations_pipeline,
+    clinical_intelligence_pipeline
 )
 
 # =========================================================
@@ -534,8 +537,8 @@ def recommended_tests(request: TestRequest):
 # PHASE 5: CARE RECOMMENDATIONS ENDPOINT
 # =========================================================
 
-@app.post("/care-recommendations")
-def care_recommendations(request: CareRequest):
+@app.post("/care-recommendations", response_model=CareRecommendationResponse)
+def care_recommendations(request: CareRecommendationRequest):
     request_id = generate_request_id()
     
     log_event("care_recommendations_request", request_id, "Care recommendations request received")
@@ -566,6 +569,60 @@ def care_recommendations(request: CareRequest):
             detail=standard_error_response(
                 status_text="Failed",
                 message="Care recommendations failed",
+                request_id=request_id,
+                error=str(e)
+            )
+        )
+
+# =========================================================
+# PHASE 6: CLINICAL INTELLIGENCE ENDPOINT
+# =========================================================
+
+@app.post("/clinical/intelligence", response_model=ClinicalIntelligenceResponse)
+def clinical_intelligence(request: DiagnosisRequest):
+    request_id = generate_request_id()
+
+    log_event(
+        "clinical_intelligence_request",
+        request_id,
+        "Clinical intelligence request received"
+    )
+
+    try:
+        result = clinical_intelligence_pipeline(request)
+
+        if not isinstance(result, dict):
+            result = {}
+
+        log_event(
+            "clinical_intelligence_response",
+            request_id,
+            "Clinical intelligence generated successfully",
+            {
+                "similar_cases": len(result.get("similar_cases", [])),
+                "diagnoses": len(result.get("possible_diagnoses", [])),
+                "tests": len(result.get("recommended_tests", []))
+            }
+        )
+
+        return ClinicalIntelligenceResponse(**result)
+
+    except Exception as e:
+        log_event(
+            "clinical_intelligence_error",
+            request_id,
+            "Clinical intelligence generation failed",
+            {
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            }
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=standard_error_response(
+                status_text="Failed",
+                message="Clinical intelligence generation failed",
                 request_id=request_id,
                 error=str(e)
             )

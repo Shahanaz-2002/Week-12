@@ -726,34 +726,6 @@ class TestRequest(BaseModel):
 
 
 # =========================================================
-# NEW: PHASE 5 - CARE RECOMMENDATIONS MODEL
-# =========================================================
-
-class CareRecommendationResponse(BaseModel):
-    home_plan: List[str] = Field(default_factory=list)
-    care_recommendations: List[str] = Field(default_factory=list)
-    follow_up_recommendations: List[str] = Field(default_factory=list)
-    success: bool = True
-
-    model_config = ConfigDict(extra="ignore")
-    diagnosis: str = ""
-    symptoms: List[str] = Field(default_factory=list)
-
-    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
-
-    @field_validator("symptoms", mode="before")
-    @classmethod
-    def clean_symptoms(cls, value):
-        if not isinstance(value, list):
-            return []
-        return [clean_text(v) for v in value if clean_text(v)]
-
-    @field_validator("diagnosis", mode="before")
-    @classmethod
-    def clean_diagnosis(cls, value):
-        return clean_text(value)
-
-# =========================================================
 # NEW: PHASE 5 - CARE RECOMMENDATIONS RESPONSE MODEL
 # =========================================================
 
@@ -783,24 +755,198 @@ class CareRecommendationResponse(BaseModel):
 # NEW: PHASE 6 - UNIFIED OUTPUT FRAMEWORK MODEL
 # =========================================================
 
+class DiagnosisSuggestion(BaseModel):
+
+    diagnosis: str
+
+    confidence_score: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0
+    )
+
+    rationale: str = ""
+
+    model_config = ConfigDict(
+        extra="ignore"
+    )
+
+    @field_validator(
+        "diagnosis",
+        "rationale",
+        mode="before"
+    )
+    @classmethod
+    def clean_text_fields(cls, value):
+
+        return clean_text(value)
+
+    @field_validator("confidence_score")
+    @classmethod
+    def validate_score(cls, value):
+
+        return safe_float(value)
+class DiagnosisSuggestion(BaseModel):
+
+    diagnosis: str
+
+    confidence_score: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0
+    )
+
+    rationale: str = ""
+
+    model_config = ConfigDict(
+        extra="ignore"
+    )
+
+    @field_validator(
+        "diagnosis",
+        "rationale",
+        mode="before"
+    )
+    @classmethod
+    def clean_text_fields(cls, value):
+
+        return clean_text(value)
+
+    @field_validator("confidence_score")
+    @classmethod
+    def validate_score(cls, value):
+
+        return safe_float(value)
+class RecommendedTest(BaseModel):
+
+    test_name: str
+
+    reason: str = ""
+
+    model_config = ConfigDict(
+        extra="ignore"
+    )
+
+    @field_validator(
+        "test_name",
+        "reason",
+        mode="before"
+    )
+    @classmethod
+    def clean_fields(cls, value):
+
+        return clean_text(value)
+class HomePlanItem(BaseModel):
+
+    recommendation: str
+
+    model_config = ConfigDict(
+        extra="ignore"
+    )
+
+    @field_validator(
+        "recommendation",
+        mode="before"
+    )
+    @classmethod
+    def clean_recommendation(cls, value):
+
+        return clean_text(value)
+    
+class CareRecommendationItem(BaseModel):
+
+    recommendation: str
+
+    category: str = ""
+
+    model_config = ConfigDict(
+        extra="ignore"
+    )
+
+    @field_validator(
+        "recommendation",
+        "category",
+        mode="before"
+    )
+    @classmethod
+    def clean_fields(cls, value):
+
+        return clean_text(value)
 class ClinicalIntelligenceResponse(BaseModel):
 
-    similar_cases: List[dict] = Field(default_factory=list)
+    similar_cases: List[SimilarCase] = Field(
+        default_factory=list
+    )
 
-    possible_diagnoses: List[dict] = Field(default_factory=list)
+    possible_diagnoses: List[
+        DiagnosisSuggestion
+    ] = Field(
+        default_factory=list
+    )
 
-    recommended_tests: List[str] = Field(default_factory=list)
+    recommended_tests: List[
+        RecommendedTest
+    ] = Field(
+        default_factory=list
+    )
 
-    home_plan: List[str] = Field(default_factory=list)
+    home_plan: List[
+        HomePlanItem
+    ] = Field(
+        default_factory=list
+    )
 
-    care_recommendations: List[str] = Field(default_factory=list)
+    care_recommendations: List[
+        CareRecommendationItem
+    ] = Field(
+        default_factory=list
+    )
 
     follow_up_recommendations: List[str] = Field(
         default_factory=list
     )
+
+    confidence_score: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0
+    )
+
+    processing_time_ms: float = 0.0
 
     success: bool = True
 
     model_config = ConfigDict(
         extra="ignore"
     )
+
+    @field_validator(
+        "confidence_score"
+    )
+    @classmethod
+    def validate_confidence(
+        cls,
+        value
+    ):
+
+        return safe_float(value)
+
+    @field_validator(
+        "processing_time_ms"
+    )
+    @classmethod
+    def validate_processing_time(
+        cls,
+        value
+    ):
+
+        try:
+            value = float(value)
+
+            if value < 0:
+                return 0.0
+
+            return round(value, 2)
+
+        except Exception:
+            return 0.0
