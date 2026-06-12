@@ -817,25 +817,7 @@ class DiagnosisSuggestion(BaseModel):
     def validate_score(cls, value):
 
         return safe_float(value)
-class RecommendedTest(BaseModel):
 
-    test_name: str
-
-    reason: str = ""
-
-    model_config = ConfigDict(
-        extra="ignore"
-    )
-
-    @field_validator(
-        "test_name",
-        "reason",
-        mode="before"
-    )
-    @classmethod
-    def clean_fields(cls, value):
-
-        return clean_text(value)
 class HomePlanItem(BaseModel):
 
     recommendation: str
@@ -872,6 +854,15 @@ class CareRecommendationItem(BaseModel):
     def clean_fields(cls, value):
 
         return clean_text(value)
+class CareRecommendationRequest(BaseModel):
+
+    symptoms: List[str] = Field(default_factory=list)
+
+    possible_diagnosis: str = ""
+
+    model_config = ConfigDict(
+        extra="ignore"
+    )
 class ClinicalIntelligenceResponse(BaseModel):
 
     similar_cases: List[SimilarCase] = Field(
