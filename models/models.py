@@ -755,37 +755,7 @@ class CareRecommendationResponse(BaseModel):
 # NEW: PHASE 6 - UNIFIED OUTPUT FRAMEWORK MODEL
 # =========================================================
 
-class DiagnosisSuggestion(BaseModel):
 
-    diagnosis: str
-
-    confidence_score: float = Field(
-        default=0.0,
-        ge=0.0,
-        le=1.0
-    )
-
-    rationale: str = ""
-
-    model_config = ConfigDict(
-        extra="ignore"
-    )
-
-    @field_validator(
-        "diagnosis",
-        "rationale",
-        mode="before"
-    )
-    @classmethod
-    def clean_text_fields(cls, value):
-
-        return clean_text(value)
-
-    @field_validator("confidence_score")
-    @classmethod
-    def validate_score(cls, value):
-
-        return safe_float(value)
 class DiagnosisSuggestion(BaseModel):
 
     diagnosis: str
@@ -854,6 +824,7 @@ class CareRecommendationItem(BaseModel):
     def clean_fields(cls, value):
 
         return clean_text(value)
+    
 class CareRecommendationRequest(BaseModel):
 
     symptoms: List[str] = Field(default_factory=list)
@@ -863,6 +834,38 @@ class CareRecommendationRequest(BaseModel):
     model_config = ConfigDict(
         extra="ignore"
     )
+    
+class RecommendedTest(BaseModel):
+
+    test_name: str
+
+    rationale: str = ""
+
+    confidence_score: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0
+    )
+
+    model_config = ConfigDict(
+        extra="ignore"
+    )
+
+    @field_validator(
+        "test_name",
+        "rationale",
+        mode="before"
+    )
+    @classmethod
+    def clean_fields(cls, value):
+
+        return clean_text(value)
+
+    @field_validator("confidence_score")
+    @classmethod
+    def validate_score(cls, value):
+
+        return safe_float(value)
 class ClinicalIntelligenceResponse(BaseModel):
 
     similar_cases: List[SimilarCase] = Field(
