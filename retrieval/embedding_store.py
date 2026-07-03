@@ -216,7 +216,7 @@ def build_clinical_text(
 
         safe_field(
             record,
-            "objective_findings"
+            "objective_additional_findings"
         ),
 
         safe_field(
@@ -226,12 +226,12 @@ def build_clinical_text(
 
         safe_field(
             record,
-            "clinical_history"
+            "clinical_context"
         ),
 
         safe_field(
             record,
-            "doctor_notes"
+            "doctor_name"
         ),
 
         safe_field(

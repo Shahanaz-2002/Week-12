@@ -99,11 +99,47 @@ def remove_duplicate_words(text: str) -> str:
 def enhance_query(query_text: str) -> str:
     query_text = clean_text(query_text)
     medical_keywords = [
-        "pain", "swelling", "injury", "fracture", "stiffness",
-        "inflammation", "weakness", "mobility", "muscle", "joint",
-        "tenderness", "sprain", "posture", "movement", "arthritis",
-        "back", "knee", "shoulder", "neck", "hip", "elbow", "ankle",
-        "spine", "nerve", "ligament", "tear"
+        "itching",
+
+    "rash",
+
+    "red patches",
+
+    "dry skin",
+
+    "acne",
+
+    "eczema",
+
+    "psoriasis",
+
+    "fungal",
+
+    "infection",
+
+    "allergy",
+
+    "swelling",
+
+    "skin",
+
+    "pigmentation",
+
+    "blisters",
+
+    "scalp",
+
+    "face",
+
+    "neck",
+
+    "hands",
+
+    "legs",
+
+    "arms",
+
+    "chest"
     ]
     detected_keywords = []
     lower_query = query_text.lower()
@@ -134,7 +170,7 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
         
         similarity = np.dot(a, b) / (norm_a * norm_b)
         similarity = float(similarity)
-        return np.clip(similarity, 0.0, 1.0)
+        return similarity
     except Exception as e:
         log_event("cosine_similarity_error", "Cosine similarity calculation failed", {"error": str(e)})
         return 0.0
@@ -162,18 +198,17 @@ def normalize_embedding(embedding) -> np.ndarray:
 def build_case_search_text(case_data: Dict) -> str:
     text_parts = []
     searchable_fields = [
+    "clinical_context",
     "diagnosis",
     "chief_complaint",
     "affected_body_part",
-    "symptoms",
     "subjective_assessment",
     "functional_assessment",
     "physical_examination",
-    "objective_findings",
-    "doctor_notes",
-    "clinical_history",
-    "case_description",
+    "objective_additional_findings",
     "previous_injuries",
+    "current_medications",
+    "allergies",
     "symptoms_duration",
     "patient_pain_classification"
 ]
@@ -317,7 +352,15 @@ def retrieve_similar_cases(query_text: str, case_database: List[Dict], top_k: in
             
             if boosted_score < MIN_SIMILARITY_THRESHOLD:
                 continue
-                
+            log_event(
+            "retrieval_debug",
+            "Similarity computed",
+            {
+            "case_id": case_data.get("case_id"),
+          "semantic": similarity_score,
+           "boosted": boosted_score
+            }
+) 
             result_object = build_result_object(
                 case_data, 
                 similarity_score, 

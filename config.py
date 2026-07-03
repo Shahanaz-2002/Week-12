@@ -102,7 +102,7 @@ DEFAULT_EMBEDDING_MODEL = EMBEDDING_MODEL_NAME
 
 EMBEDDING_DIM = 768
 
-EMBEDDING_VERSION = "biobert_semantic_v2"
+EMBEDDING_VERSION = "biobert_semantic_v3"
 
 BATCH_SIZE = 16
 
@@ -337,7 +337,7 @@ SEARCHABLE_FIELDS = [
 
     "clinical_history",
 
-    "objective_findings",
+    "objective_additional_findings",
 
     "subjective_assessment",
 
