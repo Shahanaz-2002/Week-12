@@ -20,7 +20,7 @@ from retrieval.embedding import BioBERTEmbedding
 # CONFIGURATION
 # =========================================================
 
-MIN_SIMILARITY_THRESHOLD = 0.15
+MIN_SIMILARITY_THRESHOLD = 0.05
 MAX_KEYWORD_BOOST = 0.10
 MAX_KEYWORDS_RETURN = 10
 
@@ -346,12 +346,14 @@ def retrieve_similar_cases(query_text: str, case_database: List[Dict], top_k: in
                 continue
                 
             similarity_score = cosine_similarity(query_embedding, case_embedding)
+            print(f"{case_data.get('case_id')} | Similarity: {similarity_score:.4f}"
+)
             searchable_text = build_case_search_text(case_data)
             matched_keywords = extract_matched_keywords(enhanced_query, searchable_text)
             boosted_score = apply_keyword_boost(similarity_score, matched_keywords)
             
-            if boosted_score < MIN_SIMILARITY_THRESHOLD:
-                continue
+            #if boosted_score < MIN_SIMILARITY_THRESHOLD:
+            #    continue
             log_event(
             "retrieval_debug",
             "Similarity computed",
